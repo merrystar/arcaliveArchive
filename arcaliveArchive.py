@@ -69,11 +69,59 @@ def save_article(driver, article):
     article_dir = os.path.join(SAVE_DIR, f"{link_number}_{safe_title}")
     os.makedirs(article_dir, exist_ok=True)
 
-    # 이미지 다운로드
-    for idx, img in enumerate(soup.select("img")):
+    # ------------------------------
+    # 이미지 처리
+    # ------------------------------
+    for idx, a in enumerate(soup.find_all("a", href=True)):
+        img = a.find("img")
+        if not img:
+            continue
+
+        orig_url = urljoin(article["link"], a["href"])
+        thumb_url = urljoin(article["link"], img.get("src", ""))
+
+        if not orig_url:
+            continue
+
+        try:
+            # 원본 파일 저장
+            orig_ext = os.path.splitext(orig_url.split("?")[0])[1] or ".jpg"
+            orig_filename = f"orig_{idx}{orig_ext}"
+            orig_path = os.path.join(article_dir, orig_filename)
+
+            if not os.path.exists(orig_path):
+                r = requests.get(orig_url, timeout=15)
+                if r.status_code == 200:
+                    with open(orig_path, "wb") as f:
+                        f.write(r.content)
+
+            # 썸네일 파일 저장
+            thumb_ext = os.path.splitext(thumb_url.split("?")[0])[1] or ".jpg"
+            thumb_filename = f"thumb_{idx}{thumb_ext}"
+            thumb_path = os.path.join(article_dir, thumb_filename)
+
+            if not os.path.exists(thumb_path):
+                r = requests.get(thumb_url, timeout=15)
+                if r.status_code == 200:
+                    with open(thumb_path, "wb") as f:
+                        f.write(r.content)
+
+            # HTML 경로 교체
+            a["href"] = orig_filename
+            img["src"] = thumb_filename
+
+        except Exception as e:
+            debug_print(f"[이미지 오류] {orig_url}: {e}")
+
+    # 단독 <img> 처리 (썸네일만 존재하는 경우)
+    for idx, img in enumerate(soup.find_all("img")):
+        if img.get("src", "").startswith("thumb_"):  # 이미 처리된 경우 skip
+            continue
+
         src = img.get("src")
         if not src:
             continue
+
         img_url = urljoin(article["link"], src)
         try:
             res = requests.get(img_url, timeout=10)
@@ -84,10 +132,12 @@ def save_article(driver, article):
                 with open(img_path, "wb") as f:
                     f.write(res.content)
                 img["src"] = img_filename
-        except:
-            continue
+        except Exception as e:
+            debug_print(f"[단독 이미지 오류] {img_url}: {e}")
 
+    # ------------------------------
     # CSS 다운로드 (한 번만)
+    # ------------------------------
     for idx, css in enumerate(soup.select("link[rel='stylesheet']")):
         href = css.get("href")
         if not href:
@@ -108,10 +158,12 @@ def save_article(driver, article):
                 downloaded_css.add(css_name)
                 save_progress(last_url=current_url, last_link_number=last_saved_link,
                               downloaded_css=list(downloaded_css))
-        except:
-            continue
+        except Exception as e:
+            debug_print(f"[CSS 오류] {css_url}: {e}")
 
+    # ------------------------------
     # 비디오 다운로드
+    # ------------------------------
     for idx, video in enumerate(soup.select("video")):
         video_src = video.get("src")
         sources = video.find_all("source")
@@ -136,10 +188,12 @@ def save_article(driver, article):
                     for s in sources:
                         if s.get("src") == url:
                             s["src"] = video_filename
-            except:
-                continue
+            except Exception as e:
+                debug_print(f"[비디오 오류] {video_url}: {e}")
 
+    # ------------------------------
     # HTML 저장
+    # ------------------------------
     html_filename = "index.html"
     html_path = os.path.join(article_dir, html_filename)
     with open(html_path, "w", encoding="utf-8") as f:
