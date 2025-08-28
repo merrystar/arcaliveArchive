@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 # --------- 변수 설정 ---------
 DEBUG = False
 
-CHANNEL_URL = "https://arca.live/b/cook"  # 크롤링할 아카라이브 채널 URL
+CHANNEL_URL = "https://arca.live/b/realdoll"  # 크롤링할 아카라이브 채널 URL
 EMPTY_PAGE_LIMIT = 100  # 해당 페이지동안 크롤링 가능한 글이 나오지 않을 경우 종료
 SAVE_DIR = "articles"
 CSS_DIR = os.path.join(SAVE_DIR, "css")
